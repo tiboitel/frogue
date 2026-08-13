@@ -41,3 +41,28 @@ class Stair:
 
     direction: str
     to_depth: int
+
+
+@dataclass
+class Stats:
+    """Stat block for an entity."""
+
+    strength: int
+    intelligence: int
+    dexterity: int
+
+
+@dataclass
+class Life:
+    """Hit points for an entity."""
+
+    max_hp: int
+    hp: int
+
+
+@dataclass
+class AI:
+    """Stateless weighted behavior for a non-player entity."""
+
+    disposition: str
+    intents: dict[str, int]

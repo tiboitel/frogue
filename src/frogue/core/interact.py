@@ -39,9 +39,14 @@ class InteractSystem(System):
     """Dispatch an InteractCommand for the controllable entity on input."""
 
     def update(self, world, dispatcher) -> None:
+        from .ai import Turn
+
         inp = world.resources.get(Input)
         if inp is None or not is_interact_key(inp.key):
             return
         inp.key = ""
+        turn = world.resources.get(Turn)
+        if turn is not None:
+            turn.acted = True
         for eid, _pos, _ctrl in world.query(Position, Controllable):
             dispatcher.dispatch(InteractCommand(eid))

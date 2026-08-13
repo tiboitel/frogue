@@ -43,6 +43,17 @@ def test_line_of_sight_blocked_by_wall() -> None:
     assert not has_line_of_sight(runtime.world, 5, 5, 9, 5)
 
 
+def test_line_of_sight_ignores_observer() -> None:
+    """An impassable entity at the observer's cell should not block LOS."""
+    from frogue.core.components import Impassable
+
+    runtime, _eid = _open_world()
+    observer = runtime.world.create_entity()
+    runtime.world.add_component(observer, Position(5, 5))
+    runtime.world.add_component(observer, Impassable())
+    assert has_line_of_sight(runtime.world, 5, 5, 9, 5)
+
+
 def test_compute_vision_in_bounds() -> None:
     """Vision should only include in-bounds cells."""
     runtime, _grid, _rooms, eid = _world()

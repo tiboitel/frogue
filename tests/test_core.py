@@ -24,7 +24,11 @@ def _world():
 def test_walls_are_impassable_entities() -> None:
     """Every wall cell should have an Impassable entity."""
     runtime, grid, _rooms = _world()
-    walls = {(pos.x, pos.y) for _eid, pos, _ in runtime.world.query(Position, Impassable)}
+    walls = {
+        (pos.x, pos.y)
+        for _eid, pos, _ in runtime.world.query(Position, Impassable)
+        if grid[pos.y][pos.x] == "#"
+    }
     grid_walls = {(x, y) for y, row in enumerate(grid) for x, cell in enumerate(row) if cell == "#"}
     assert walls == grid_walls
 
@@ -73,7 +77,7 @@ def test_can_move_out_of_bounds() -> None:
     runtime, _grid, rooms = _world()
     eid = spawn_player(runtime.world, rooms)
     pos = runtime.world.query_single(eid, Position)
-    assert can_move(runtime.world, pos.x, pos.y)
+    assert can_move(runtime.world, pos.x + 1, pos.y)
     assert not can_move(runtime.world, -1, 0)
 
 

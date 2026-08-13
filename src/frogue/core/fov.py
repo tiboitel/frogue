@@ -26,9 +26,12 @@ class Explored:
 def has_line_of_sight(world, x0: int, y0: int, x1: int, y1: int) -> bool:
     """Return True if no impassable entity lies between the two points.
 
-    The target cell itself is always reachable, even if it is a wall.
+    The observer's own cell and the target cell are always reachable, even
+    if they are walls or occupied by an impassable entity.
     """
     for x, y in _ray(x0, y0, x1, y1):
+        if (x, y) == (x0, y0):
+            continue
         if (x, y) == (x1, y1):
             return True
         if is_blocked(world, x, y):

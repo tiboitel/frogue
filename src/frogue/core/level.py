@@ -1,5 +1,7 @@
 """Build ECS entities from a generated dungeon grid."""
 
+from random import Random
+
 from hive import Runtime
 
 from frogue.dungeon import DOWN, floor_seed
@@ -8,8 +10,10 @@ from frogue.dungeon.rect import Rect
 from frogue.dungeon.stair import Stair
 
 from .components import (
+    AI,
     Controllable,
     Impassable,
+    Life,
     Position,
     Renderable,
     Vision,
@@ -18,6 +22,7 @@ from .components import (
     Stair as StairComponent,
 )
 from .input import Grid, GridSize
+from .monsters import RAT, Monster, roll_stats
 
 
 def create_game(
@@ -30,6 +35,7 @@ def create_game(
     grid, rooms, stairs = generate(seed=floor_seed(seed, depth), depth=depth, max_depth=max_depth)
     build_level(runtime.world, grid)
     build_stairs(runtime.world, stairs)
+    build_npcs(runtime.world, Random(floor_seed(seed, depth * 1009)), rooms, stairs, depth)
     runtime.world.resources.register(GridSize(len(grid[0]), len(grid)))
     runtime.world.resources.register(Grid(grid))
     return runtime, grid, rooms, stairs
@@ -37,6 +43,7 @@ def create_game(
 
 def setup_world(runtime: Runtime) -> None:
     """Register systems, handlers, and persistent resources on a runtime."""
+    from .ai import AISystem, Turn
     from .fov import Explored, Fov, VisionSystem
     from .input import Input
     from .interact import InteractCommand, InteractSystem, PendingTransition, interact_handler
@@ -45,12 +52,14 @@ def setup_world(runtime: Runtime) -> None:
     runtime.world.register(MovementSystem())
     runtime.world.register(VisionSystem())
     runtime.world.register(InteractSystem())
+    runtime.world.register(AISystem())
     runtime.router.register(MoveCommand, move_handler)
     runtime.router.register(InteractCommand, interact_handler)
     runtime.world.resources.register(Input())
     runtime.world.resources.register(Fov())
     runtime.world.resources.register(Explored())
     runtime.world.resources.register(PendingTransition())
+    runtime.world.resources.register(Turn())
 
 
 def apply_transition(cache: "FloorCache", pending, current_depth: int) -> int | None:
@@ -83,6 +92,49 @@ def build_stairs(world, stairs: list[Stair]) -> None:
         world.add_component(eid, StairComponent(stair.direction, stair.to_depth))
 
 
+def build_npcs(world, rng: Random, rooms, stairs, depth: int) -> None:
+    """Spawn 2*depth rats across rooms, excluding the player's start."""
+    candidates = list(rooms[1:])
+    if not candidates:
+        return
+    used: set[tuple[int, int]] = set()
+    stair_cells = {(stair.x, stair.y) for stair in stairs}
+    rng.shuffle(candidates)
+    target = 2 * depth
+    for room in candidates * ((target - 1) // len(candidates) + 1):
+        if target <= 0:
+            break
+        cell = _random_floor_cell(rng, room, used | stair_cells)
+        if cell is None:
+            continue
+        used.add(cell)
+        _spawn_npc(world, rng, cell, RAT)
+        target -= 1
+
+
+def _random_floor_cell(rng: Random, room, used: set[tuple[int, int]]) -> tuple[int, int] | None:
+    """Return a random unused floor cell inside the room, or None."""
+    for _ in range(20):
+        x = rng.randrange(room.x, room.right)
+        y = rng.randrange(room.y, room.bottom)
+        if (x, y) not in used:
+            return x, y
+    return None
+
+
+def _spawn_npc(world, rng: Random, cell: tuple[int, int], monster: Monster) -> None:
+    """Create an NPC entity with stats, life, vision, and AI at the given cell."""
+    x, y = cell
+    eid = world.create_entity()
+    world.add_component(eid, Position(x, y))
+    world.add_component(eid, Renderable(monster.symbol))
+    world.add_component(eid, Impassable())
+    world.add_component(eid, Vision(monster.vision))
+    world.add_component(eid, AI(monster.disposition, dict(monster.intents)))
+    world.add_component(eid, Life(monster.hp, monster.hp))
+    world.add_component(eid, roll_stats(rng))
+
+
 def _stair_char(direction: str) -> str:
     """Return the render symbol for a stair direction."""
     return ">" if direction == DOWN else "<"
@@ -96,6 +148,7 @@ def spawn_player(world, rooms, index: int = 0) -> int:
     world.add_component(eid, Renderable("@"))
     world.add_component(eid, Controllable())
     world.add_component(eid, Vision())
+    world.add_component(eid, Impassable())
     return eid
 
 

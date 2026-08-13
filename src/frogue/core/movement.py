@@ -42,6 +42,8 @@ class MovementSystem(System):
     """Dispatch a MoveCommand for the controllable entity on input."""
 
     def update(self, world, dispatcher) -> None:
+        from .ai import Turn
+
         inp = world.resources.get(Input)
         if inp is None or not inp.key:
             return
@@ -49,5 +51,8 @@ class MovementSystem(System):
         if delta is None:
             return
         inp.key = ""
+        turn = world.resources.get(Turn)
+        if turn is not None:
+            turn.acted = True
         for eid, _pos, _ctrl in world.query(Position, Controllable):
             dispatcher.dispatch(MoveCommand(eid, *delta))
