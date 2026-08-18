@@ -1,6 +1,6 @@
 """Tests for dungeon generation."""
 
-from frogue.dungeon import DOWN, UP, floor_seed, generate
+from frogue.dungeon import DOWN, EXIT, EXIT_DEPTH, UP, floor_seed, generate
 from frogue.dungeon.map import EMPTY, FLOOR
 from frogue.dungeon.rect import Rect
 
@@ -121,12 +121,16 @@ def test_floor_one_has_only_down_stair() -> None:
     assert stairs[0].to_depth == 2
 
 
-def test_last_floor_has_only_up_stair() -> None:
-    """Depth 5 should have exactly one up stair and no down stair."""
+def test_last_floor_has_up_and_exit_stair() -> None:
+    """Depth 5 should have one up stair and one exit stair."""
     _grid, _rooms, stairs = generate(seed=1, depth=5, max_depth=5)
-    assert len(stairs) == 1
-    assert stairs[0].direction == UP
-    assert stairs[0].to_depth == 4
+    assert len(stairs) == 2
+    directions = {s.direction for s in stairs}
+    assert directions == {UP, EXIT}
+    up = next(s for s in stairs if s.direction == UP)
+    assert up.to_depth == 4
+    exit_stair = next(s for s in stairs if s.direction == EXIT)
+    assert exit_stair.to_depth == EXIT_DEPTH
 
 
 def test_middle_floors_have_both_stairs() -> None:

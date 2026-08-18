@@ -19,6 +19,13 @@ class Renderable:
 
 
 @dataclass
+class Name:
+    """Display name of an entity."""
+
+    name: str
+
+
+@dataclass
 class Controllable:
     """Tag marking an entity as player-controlled."""
 
@@ -26,6 +33,18 @@ class Controllable:
 @dataclass
 class Impassable:
     """Tag marking an entity that blocks movement."""
+
+
+@dataclass
+class Hostile:
+    """Tag marking an entity that bump attacks target."""
+
+
+@dataclass
+class Damage:
+    """Sides of the damage die rolled on a bump attack."""
+
+    sides: int
 
 
 @dataclass
@@ -58,6 +77,20 @@ class Life:
 
     max_hp: int
     hp: int
+
+
+@dataclass
+class Range:
+    """Maximum distance of an entity's ranged attack."""
+
+    distance: int
+
+
+@dataclass
+class Target:
+    """Last known player position remembered by a tracking enemy."""
+
+    pos: tuple[int, int] | None = None
 
 
 @dataclass

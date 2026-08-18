@@ -19,6 +19,11 @@ Project conventions for editing this codebase. Follow these strictly.
 - Put all helpers in `./src/helpers`.
 - Design patterns only when they genuinely reduce duplication / generalize code — don't over-engineer.
 
+## Turn resolution
+- The player acts first, then each NPC acts in order, each against live world state (like Brogue/Rogue/Crawl).
+- Resolve actions synchronously in systems; never defer commands that later actors must observe.
+- Movement and bumping are 4-directional only (no diagonals).
+
 ## Verification
 - Lint: `uv run ruff check .`
 - Format: `uv run ruff format .`

@@ -142,3 +142,191 @@ def test_interact_key_not_consumed_by_movement() -> None:
     runtime.step()
     pending = runtime.world.resources.get(PendingTransition)
     assert pending.to_depth == stair.to_depth
+
+
+def test_player_spawns_with_life_and_damage() -> None:
+    """Player should spawn with 8-12 hp and a 1d4 bump attack."""
+    from frogue.core.components import Damage, Hostile, Life
+
+    runtime, _grid, rooms = _world()
+    eid = spawn_player(runtime.world, rooms)
+    life = runtime.world.query_single(eid, Life)
+    damage = runtime.world.query_single(eid, Damage)
+    assert 8 <= life.max_hp <= 12
+    assert life.hp == life.max_hp
+    assert damage.sides == 4
+    assert runtime.world.has_component(eid, Hostile)
+
+
+def test_bump_attacks_hostile_occupant() -> None:
+    """Bumping a hostile occupant should damage it and keep the mover put."""
+    from frogue.core.bump import BumpCommand, bump_handler
+    from frogue.core.components import AI, Hostile, Life
+
+    runtime, _grid, rooms = _world()
+    world = runtime.world
+    player = spawn_player(world, rooms)
+    room = rooms[0]
+    rat = world.create_entity()
+    world.add_component(rat, Position(room.x + 2, room.y + 1))
+    world.add_component(rat, AI("hostile", {"idle": 1}))
+    world.add_component(rat, Hostile())
+    world.add_component(rat, Life(4, 4))
+    bump_handler(BumpCommand(player, 1, 0), world)
+    life = world.query_single(rat, Life)
+    assert 0 <= life.hp < 4
+    pos = world.query_single(player, Position)
+    assert (pos.x, pos.y) == (room.x + 1, room.y + 1)
+
+
+def test_bump_wall_does_no_damage() -> None:
+    """Bumping a wall should not damage anything and keep the mover put."""
+    from frogue.core.bump import BumpCommand, bump_handler
+    from frogue.core.components import Impassable
+
+    runtime, _grid, rooms = _world()
+    world = runtime.world
+    player = spawn_player(world, rooms)
+    room = rooms[0]
+    wall = world.create_entity()
+    world.add_component(wall, Position(room.x + 2, room.y + 1))
+    world.add_component(wall, Impassable())
+    bump_handler(BumpCommand(player, 1, 0), world)
+    pos = world.query_single(player, Position)
+    assert (pos.x, pos.y) == (room.x + 1, room.y + 1)
+
+
+def test_bump_non_hostile_does_no_damage() -> None:
+    """Bumping a non-hostile occupant should not damage it."""
+    from frogue.core.bump import BumpCommand, bump_handler
+    from frogue.core.components import Life
+
+    runtime, _grid, rooms = _world()
+    world = runtime.world
+    player = spawn_player(world, rooms)
+    room = rooms[0]
+    npc = world.create_entity()
+    world.add_component(npc, Position(room.x + 2, room.y + 1))
+    world.add_component(npc, Life(4, 4))
+    bump_handler(BumpCommand(player, 1, 0), world)
+    life = world.query_single(npc, Life)
+    assert life.hp == 4
+
+
+def test_bump_death_destroys_entity() -> None:
+    """An entity reduced to zero hp should be destroyed via the Death event."""
+    from frogue.core.bump import BumpCommand, Death, bump_handler, on_death
+    from frogue.core.components import AI, Hostile, Life
+
+    runtime, _grid, rooms = _world()
+    world = runtime.world
+    world.event_bus.on(Death, on_death)
+    player = spawn_player(world, rooms)
+    room = rooms[0]
+    rat = world.create_entity()
+    world.add_component(rat, Position(room.x + 2, room.y + 1))
+    world.add_component(rat, AI("hostile", {"idle": 1}))
+    world.add_component(rat, Hostile())
+    world.add_component(rat, Life(1, 1))
+    bump_handler(BumpCommand(player, 1, 0), world)
+    assert not world.has_component(rat, Life)
+
+
+def test_bump_consumes_turn() -> None:
+    """Bumping into a hostile should still spend the player's turn."""
+    from frogue.core.ai import Turn
+    from frogue.core.components import AI, Hostile, Impassable, Life
+    from frogue.core.input import Input
+    from frogue.core.level import setup_world
+
+    runtime, _grid, rooms, _stairs = create_game(seed=1, depth=1)
+    setup_world(runtime)
+    spawn_player(runtime.world, rooms)
+    room = rooms[0]
+    rat = runtime.world.create_entity()
+    runtime.world.add_component(rat, Position(room.x + 2, room.y + 1))
+    runtime.world.add_component(rat, AI("hostile", {"idle": 1}))
+    runtime.world.add_component(rat, Hostile())
+    runtime.world.add_component(rat, Impassable())
+    runtime.world.add_component(rat, Life(4, 4))
+    runtime.world.resources.get(Input).key = "d"
+    runtime.step()
+    assert runtime.world.resources.get(Turn).acted is False
+
+
+def test_bump_appends_message() -> None:
+    """A bump attack should append a message naming the target."""
+    from frogue.core.bump import BumpCommand, bump_handler
+    from frogue.core.components import AI, Hostile, Life, Name
+    from frogue.core.ui import MessageLog
+
+    runtime, _grid, rooms = _world()
+    world = runtime.world
+    world.resources.register(MessageLog())
+    player = spawn_player(world, rooms)
+    room = rooms[0]
+    rat = world.create_entity()
+    world.add_component(rat, Position(room.x + 2, room.y + 1))
+    world.add_component(rat, AI("hostile", {"idle": 1}))
+    world.add_component(rat, Hostile())
+    world.add_component(rat, Life(4, 4))
+    world.add_component(rat, Name("rat"))
+    bump_handler(BumpCommand(player, 1, 0), world)
+    log = world.resources.get(MessageLog)
+    assert log.messages and "rat" in log.messages[-1]
+
+
+def test_player_death_sets_game_over_phase() -> None:
+    """Player death should set the game phase to DEAD."""
+    from frogue.core.bump import BumpCommand, Death, bump_handler, on_death
+    from frogue.core.components import AI, Damage, Hostile, Life, Name
+    from frogue.core.ui import GamePhase, Phase
+
+    runtime, _grid, rooms = _world()
+    world = runtime.world
+    world.resources.register(GamePhase())
+    world.event_bus.on(Death, on_death)
+    player = spawn_player(world, rooms)
+    room = rooms[0]
+    rat = world.create_entity()
+    world.add_component(rat, Position(room.x + 2, room.y + 1))
+    world.add_component(rat, AI("hostile", {"idle": 1}))
+    world.add_component(rat, Hostile())
+    world.add_component(rat, Life(4, 4))
+    world.add_component(rat, Name("rat"))
+    world.add_component(rat, Damage(4))
+    player_life = world.query_single(player, Life)
+    player_life.hp = 1
+    bump_handler(BumpCommand(rat, -1, 0), world)
+    assert world.resources.get(GamePhase).phase is Phase.DEAD
+
+
+def test_score_total_formula() -> None:
+    """Score should reward kills and depth and penalize turns."""
+    from frogue.core.ui import Score
+
+    score = Score()
+    assert score.total(1, 0) == 50
+    score.kills = 3
+    assert score.total(2, 10) == 3 * 10 + 2 * 50 - 10
+
+
+def test_npc_death_increments_score() -> None:
+    """Killing an NPC should increment the shared score resource."""
+    from frogue.core.bump import BumpCommand, Death, bump_handler, on_death
+    from frogue.core.components import AI, Hostile, Life
+    from frogue.core.ui import Score
+
+    runtime, _grid, rooms = _world()
+    world = runtime.world
+    world.resources.register(Score())
+    world.event_bus.on(Death, on_death)
+    player = spawn_player(world, rooms)
+    room = rooms[0]
+    npc = world.create_entity()
+    world.add_component(npc, Position(room.x + 2, room.y + 1))
+    world.add_component(npc, AI("hostile", {"idle": 1}))
+    world.add_component(npc, Hostile())
+    world.add_component(npc, Life(1, 1))
+    bump_handler(BumpCommand(player, 1, 0), world)
+    assert world.resources.get(Score).kills == 1

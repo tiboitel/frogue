@@ -36,7 +36,7 @@ def interact_handler(cmd: InteractCommand, world) -> None:
 
 
 class InteractSystem(System):
-    """Dispatch an InteractCommand for the controllable entity on input."""
+    """Resolve an interaction for the controllable entity on input."""
 
     def update(self, world, dispatcher) -> None:
         from .ai import Turn
@@ -49,4 +49,4 @@ class InteractSystem(System):
         if turn is not None:
             turn.acted = True
         for eid, _pos, _ctrl in world.query(Position, Controllable):
-            dispatcher.dispatch(InteractCommand(eid))
+            interact_handler(InteractCommand(eid), world)

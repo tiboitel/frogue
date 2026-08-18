@@ -3,8 +3,14 @@
 from unittest.mock import patch
 
 from frogue.core.fov import Explored, Fov
-from frogue.core.level import create_game
-from frogue.render.curses_renderer import _cell_state, render
+from frogue.core.level import create_game, spawn_player
+from frogue.render.curses_renderer import (
+    _cell_state,
+    render,
+    render_dead,
+    render_start,
+    render_win,
+)
 
 
 class _StubScreen:
@@ -91,3 +97,54 @@ def test_render_status_skipped_when_no_room() -> None:
         render(screen, runtime.world, grid)
     assert screen.calls
     assert all(y < len(grid) for y, _x, _t in screen.calls)
+
+
+def test_render_start_screen_shows_title() -> None:
+    """The start screen should show the game title."""
+    screen = _StubScreen(10, 40)
+    render_start(screen)
+    assert any("FROGUE" in text for _y, _x, text in screen.calls)
+
+
+def test_render_dead_screen_shows_you_died() -> None:
+    """The game-over screen should show 'YOU DIED.' and restart options."""
+    screen = _StubScreen(10, 40)
+    render_dead(screen)
+    assert any("YOU DIED." in text for _y, _x, text in screen.calls)
+    assert any("Press R to restart" in text for _y, _x, text in screen.calls)
+
+
+def test_render_win_screen_shows_you_escaped() -> None:
+    """The victory screen should show the escape message and restart options."""
+    screen = _StubScreen(10, 40)
+    render_win(screen)
+    assert any("YOU ESCAPED THE DUNGEON." in text for _y, _x, text in screen.calls)
+    assert any("Press R to restart" in text for _y, _x, text in screen.calls)
+
+
+def test_render_status_includes_hp() -> None:
+    """The status line should show the player's HP."""
+    runtime, grid, rooms, _stairs = create_game(seed=1)
+    runtime.world.resources.register(_all_visible(grid))
+    runtime.world.resources.register(Explored(set()))
+    spawn_player(runtime.world, rooms)
+    screen = _StubScreen(len(grid) + 3, 40)
+    with _patch_curses():
+        render(screen, runtime.world, grid)
+    assert any("HP:" in text for _y, _x, text in screen.calls)
+
+
+def test_render_draws_message_log() -> None:
+    """The message log should be drawn below the status line."""
+    from frogue.core.ui import MessageLog
+
+    runtime, grid, rooms, _stairs = create_game(seed=1)
+    runtime.world.resources.register(_all_visible(grid))
+    runtime.world.resources.register(Explored(set()))
+    runtime.world.resources.register(MessageLog())
+    runtime.world.resources.get(MessageLog).add("The rat attacks you.")
+    spawn_player(runtime.world, rooms)
+    screen = _StubScreen(len(grid) + 3, 40)
+    with _patch_curses():
+        render(screen, runtime.world, grid)
+    assert any("The rat attacks you." in text for _y, _x, text in screen.calls)

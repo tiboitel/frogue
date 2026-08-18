@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from hive.core import System
 
+from .bump import BumpCommand, bump_handler
 from .collision import is_blocked
 from .components import Controllable, Position
 from .input import GridSize, Input, key_to_delta
@@ -29,17 +30,19 @@ def can_move(world, x: int, y: int) -> bool:
 
 
 def move_handler(cmd: MoveCommand, world) -> None:
-    """Apply a MoveCommand if the target cell is walkable."""
+    """Apply a MoveCommand, or bump into the occupied target cell."""
     pos = world.query_single(cmd.entity, Position)
     if pos is None:
         return
     nx, ny = pos.x + cmd.dx, pos.y + cmd.dy
     if can_move(world, nx, ny):
         pos.x, pos.y = nx, ny
+    else:
+        bump_handler(BumpCommand(cmd.entity, cmd.dx, cmd.dy), world)
 
 
 class MovementSystem(System):
-    """Dispatch a MoveCommand for the controllable entity on input."""
+    """Resolve a move for the controllable entity on input."""
 
     def update(self, world, dispatcher) -> None:
         from .ai import Turn
@@ -55,4 +58,4 @@ class MovementSystem(System):
         if turn is not None:
             turn.acted = True
         for eid, _pos, _ctrl in world.query(Position, Controllable):
-            dispatcher.dispatch(MoveCommand(eid, *delta))
+            move_handler(MoveCommand(eid, *delta), world)

@@ -6,6 +6,8 @@ from .rect import Rect
 
 UP = "up"
 DOWN = "down"
+EXIT = "exit"
+EXIT_DEPTH = 0
 
 AREA_W = 10
 AREA_H = 8
@@ -30,6 +32,9 @@ def place_stairs(rng, rooms: list[Rect], depth: int, max_depth: int) -> list[Sta
     if depth < max_depth:
         down_room = rng.choice(rooms)
         stairs.append(_make_stair(down_room, DOWN, depth + 1))
+    elif depth == max_depth:
+        down_room = rng.choice(rooms)
+        stairs.append(_make_stair(down_room, EXIT, EXIT_DEPTH))
     if depth > 1:
         up_room = _opposite_room(rng, rooms, cells, down_room)
         stairs.append(_make_stair(up_room, UP, depth - 1))

@@ -1,9 +1,11 @@
 """Tests for floor caching and state preservation across transitions."""
 
-from frogue.core import FloorCache, PendingTransition, Position
-from frogue.core.components import Controllable
+from frogue.core import FloorCache, PendingTransition, Position, apply_transition
+from frogue.core.components import Controllable, Life
 from frogue.core.fov import Explored
 from frogue.core.input import Input
+from frogue.core.ui import GamePhase, Phase
+from frogue.dungeon import EXIT, EXIT_DEPTH
 
 
 def _descend(cache: FloorCache, depth: int) -> None:
@@ -94,6 +96,38 @@ def test_player_spawns_on_arrival_stair() -> None:
     floor2 = cache.floor(2)
     up = next(s for s in floor2["stairs"] if s.direction == "up")
     assert _player_pos(cache, 2) == (up.x, up.y)
+
+
+def test_player_hp_preserved_across_transition() -> None:
+    """Descending should carry the player's HP over instead of re-rolling it."""
+    cache = FloorCache(5)
+    cache.spawn_player(1)
+    player = next(e for e, _, _ in cache.floor(1)["runtime"].world.query(Position, Controllable))
+    life = cache.floor(1)["runtime"].world.query_single(player, Life)
+    life.hp = 3
+    pending = _pending(cache, 1)
+    pending.to_depth = 2
+    assert apply_transition(cache, pending, 1) == 2
+    player2 = next(e for e, _, _ in cache.floor(2)["runtime"].world.query(Position, Controllable))
+    life2 = cache.floor(2)["runtime"].world.query_single(player2, Life)
+    assert (life2.hp, life2.max_hp) == (3, life.max_hp)
+
+
+def test_player_wins_via_exit_stair() -> None:
+    """Stepping on the exit stair should set the WIN phase without a transition."""
+    cache = FloorCache(5)
+    cache.spawn_player(5)
+    floor = cache.floor(5)
+    exit_stair = next(s for s in floor["stairs"] if s.direction == EXIT)
+    player = next(e for e, _, _ in floor["runtime"].world.query(Position, Controllable))
+    pos = floor["runtime"].world.query_single(player, Position)
+    pos.x, pos.y = exit_stair.x, exit_stair.y
+    floor["runtime"].world.resources.get(Input).key = "e"
+    floor["runtime"].step()
+    assert _pending(cache, 5).to_depth == EXIT_DEPTH
+    assert apply_transition(cache, _pending(cache, 5), 5) is None
+    phase = floor["runtime"].world.resources.get(GamePhase)
+    assert phase.phase is Phase.WIN
 
 
 def test_player_spawns_on_down_stair_when_returning() -> None:

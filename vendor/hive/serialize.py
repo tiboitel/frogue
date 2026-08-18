@@ -11,14 +11,14 @@ def register_serializer(type_, to_dict, from_dict):
 
 def _serialize_component(obj: Any) -> dict[str, Any]:
     tname = type(obj).__name__
-    if dataclasses.is_dataclass(obj):
-        return {"__type__": tname, "data": dataclasses.asdict(obj)}
     if tname in _serializers:
         to_dict = _serializers[tname][1]
         return {"__type__": tname, "data": to_dict(obj)}
+    if dataclasses.is_dataclass(obj):
+        return {"__type__": tname, "__module__": type(obj).__module__, "data": dataclasses.asdict(obj)}
     # fallback to __dict__ if possible
     if hasattr(obj, "__dict__"):
-        return {"__type__": tname, "data": dict(obj.__dict__)}
+        return {"__type__": tname, "__module__": type(obj).__module__, "data": dict(obj.__dict__)}
     raise TypeError(f"No serializer for component type {tname}")
 
 
@@ -29,9 +29,17 @@ def _deserialize_component(obj: Any) -> dict[str, Any]:
         from_dict = _serializers[tname][2]
         return from_dict(data)
     # Best-effort: if no custom serializer, assume dataclass and try to
-    # reconstruct by finding a class with matching name in the global scope.
-    # Try to find the class in module globals first, then in builtins
-    cls = globals().get(tname)
+    # reconstruct by resolving the recorded module path, falling back to a
+    # dataclass-by-name scan of loaded modules.
+    cls = None
+    module = obj.get("__module__")
+    if module:
+        import importlib
+
+        mod = importlib.import_module(module)
+        candidate = getattr(mod, tname, None)
+        if candidate is not None and dataclasses.is_dataclass(candidate):
+            cls = candidate
     if cls is None:
         # try to locate class in loaded modules
         import sys
@@ -40,7 +48,7 @@ def _deserialize_component(obj: Any) -> dict[str, Any]:
             if not mod:
                 continue
             c = getattr(mod, tname, None)
-            if c is not None:
+            if c is not None and dataclasses.is_dataclass(c):
                 cls = c
                 break
     if cls is not None and dataclasses.is_dataclass(cls):

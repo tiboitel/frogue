@@ -1,16 +1,22 @@
 """Core simulation package."""
 
 from .ai import AISystem, Turn
+from .bump import BumpCommand, Death, attack, bump_handler, on_death
 from .collision import is_blocked
 from .components import (
     AI,
     Controllable,
+    Damage,
+    Hostile,
     Impassable,
     Life,
+    Name,
     Position,
+    Range,
     Renderable,
     Stair,
     Stats,
+    Target,
     Vision,
 )
 from .fov import Explored, Fov, VisionSystem, compute_vision, has_line_of_sight
@@ -31,21 +37,36 @@ from .level import (
     setup_world,
     spawn_player,
 )
-from .monsters import RAT, Monster, roll_stats
+from .monsters import HUNTER, RANGED, TRACKER, Monster, roll_stats
 from .movement import MoveCommand, MovementSystem, can_move, move_handler
+from .ui import GamePhase, MessageLog, Phase, Score
 
 __all__ = [
     "AI",
     "Controllable",
+    "Damage",
+    "Hostile",
     "Impassable",
     "Life",
+    "Name",
     "Position",
+    "Range",
     "Renderable",
     "Stair",
     "Stats",
+    "Target",
     "Vision",
+    "GamePhase",
+    "MessageLog",
+    "Phase",
+    "Score",
     "AISystem",
     "Turn",
+    "BumpCommand",
+    "Death",
+    "attack",
+    "bump_handler",
+    "on_death",
     "is_blocked",
     "Explored",
     "Fov",
@@ -68,7 +89,9 @@ __all__ = [
     "FloorCache",
     "apply_transition",
     "setup_world",
-    "RAT",
+    "HUNTER",
+    "RANGED",
+    "TRACKER",
     "Monster",
     "roll_stats",
     "MovementSystem",
