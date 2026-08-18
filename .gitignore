@@ -6,5 +6,4 @@ __pycache__/
 *.egg-info/
 dist/
 build/
-.opencode/opencode-loop/
-.opencode/node_modules/
+.opencode/
